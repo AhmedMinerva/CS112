@@ -1,0 +1,179 @@
+install.packages("dplyr")
+library(dplyr)
+
+### Multilateral Development Institution Data
+foo <- read.csv("https://tinyurl.com/yb4phxx8") # read in the data
+
+# column names
+names(foo)
+
+# dimensions of the data set
+dim(foo)
+
+# quick look at the data structure
+head(foo)
+
+# one thing to be very careful with (in this data set) is the use of dates. 8 columns involve dates.
+
+# take note of the columns representing calendar dates
+date.columns <- c(11, 12, 14, 15, 16, 17, 18, 25)
+
+# these columns need some tweaking--I want to address missing values, calling the blank (empty) 
+# elements "NA" instead of leaving them blank, and I wish to tell R these are "Date" objects.
+
+for(i in date.columns)  # this "for loop" only loops through the "date.columns" -- no other columns.
+  
+{
+  
+  # identify which values are missing in the "i"th column of the foo data set
+  which_values_are_missing <- which(as.character(foo[, i]) == "")
+  which_values_are_missing
+  
+  # those values that are missing (blank) in the "i"th column are replaced by <NA>
+  # because R knows how to handle "NA" -- NA means something special in R--blanks are handled 
+  # more unpredictably (which is bad).
+  foo[which_values_are_missing, i] <- NA
+  
+  # last step--replace each of these columns (which is structured as a column of "factor" values)
+  # as a column of dates--i.e., convert them to an object of "class" = Date. They are dates, after all.
+  # And if you convert them to the Date class, R will know they are dates and you can manipulate 
+  # dates in a simple, straightforward way. Otherwise, you won't be able to easily manipulate them
+  # arithmetically.  E.g., for simple Date operations, see lines 48-58 below...
+  # **By the way, if you don't understand what a "factor" is in R, you should Google it.** 
+  foo[, i] <- as.Date(as.character(foo[, i]))
+  
+}
+
+# Now R knows that these columns are comprised of dates
+# for example...  Replicate this yourself...
+
+# foo[3,12]
+# [1] "1968-03-13"
+
+# foo[4,12]
+# [1] "1968-07-03"
+
+# foo[3,12] - foo[4,12]
+# Time difference of -112 days
+
+# Also, one additional helpful hint... How to eliminate rows with NAs...
+# The "is.na" function--for more info, Google it or type ?is.na at the R command prompt in the console.
+which.have.NAs <- which(is.na(foo$Rating == TRUE)) # for which rows is the claim "is.na" a TRUE claim?
+
+# Then, if you wanted to, e.g., remove all those rows, retaining only the rows with ratings...
+new_foo <- foo[-which.have.NAs, ]
+# Notice I called this tweaked data set "new_foo" instead of rewriting over the original data set...
+# It's a bit safer to do this, in case I decide I want to quickly revert back to the original data set.
+
+
+#new_foo1$CirculationDate<-as.Date(new_foo1$CirculationDate, '%Y,%m,%d')
+
+new_foo1<-new_foo[format(new_foo$CirculationDate, "%Y , %m , %d")>="2008-01-01",]
+new_foo1$CirculationDate
+summary(new_foo1$CirculationDate)
+sum(is.na(new_foo1$CirculationDate))
+
+
+
+#Exclude all the NA's
+new_foo1<-new_foo1%>%filter(is.na(new_foo1$CirculationDate) != TRUE)
+new_foo1$CirculationDate
+sum(is.na(new_foo1$CirculationDate))
+
+
+#Q1.1
+names(foo)
+type(new_foo1$ApprovalDate)
+Difference_dates<- c((new_foo1$OriginalCompletionDate - new_foo1$ApprovalDate)/30 )
+Difference_dates
+new_foo1 <- cbind(new_foo1,Difference_dates)
+new_foo1$Difference_dates
+new_foo1$Difference_dates<-as.numeric(new_foo1$Difference_dates)
+summary(new_foo1$Difference_dates)
+hist(new_foo1$Difference_dates)
+quantile(new_foo1$Difference_dates,na.rm = TRUE)
+
+
+#Renaming the colum
+#names(new_foo1)[names(new_foo1) == "Difference_dates"] <- "Original_Duration"
+
+#Q1.2
+actual_Duration<- c((new_foo1$RevisedCompletionDate- new_foo1$ApprovalDate)/30 )
+actual_Duration
+new_foo1 <- cbind(new_foo1,actual_Duration)
+new_foo1$actual_Duration<-as.numeric(new_foo1$actual_Duration)
+Date_difference <- new_foo1$actual_Duration-new_foo1$Difference_dates
+summary(new_foo1$actual_Duration-new_foo1$Difference_dates)
+quantile(new_foo1$actual_Duration,na.rm = TRUE)
+
+
+
+
+
+#Q2
+
+hist(new_foo1$Rating)
+quantile(new_foo1$Rating,na.rm = TRUE)
+zero_rario=sum(new_foo1$Rating == 0 )/1869
+one_rario=sum(new_foo1$Rating == 1 )/1869
+two_rario=sum(new_foo1$Rating == 2 )/1869
+three_rario=sum(new_foo1$Rating == 3 )/1869
+zero_rario + one_rario +two_rario +three_rario
+
+x <- c(zero_rario,one_rario,two_rario,three_rario)
+labels <- c("0Rate_Ration","1Rate_Ration","2Rate_Ration","3Rate_Ration")
+pie(x,labels,main = "Rate Percentage pie chart")
+
+Percentage <- matrix(c(zero_rario,one_rario,two_rario,three_rario),ncol=4,byrow=TRUE)
+colnames(Percentage) <- c("Zero","One","Two","Three")
+rownames(Percentage) <- c("Percentage")
+Percentage
+
+
+#Q3
+new_foo1$Type
+which.have.PPTA <- which((new_foo1$Type == "PPTA"))
+new_foo2 <- new_foo1[-which.have.PPTA, ]
+str(new_foo2$Rating)
+zero_rario1=sum(new_foo2$Rating == 0 )/1757
+one_rario1=sum(new_foo2$Rating == 1 )/1757
+two_rario1=sum(new_foo2$Rating == 2 )/1757
+three_rario1=sum(new_foo2$Rating == 3 )/1757
+zero_rario1 + one_rario1 +two_rario1 +three_rario1
+
+Percentage <- matrix(c(zero_rario1,one_rario1,two_rario1,three_rario1),ncol=4,byrow=TRUE)
+colnames(Percentage) <- c("Zero","One","Two","Three")
+rownames(Percentage) <- c("Percentage")
+Percentage
+
+x <- c(zero_rario1,one_rario1,two_rario1,three_rario1)
+labels <- c("0Rate_Ration","1Rate_Ration","2Rate_Ration","3Rate_Ration")
+pie(x,labels,main = "Rate Percentage pie chart")
+
+
+#Q4
+new_foo1$RevisedAmount
+summary(new_foo1$RevisedAmount)
+quantile(new_foo1$RevisedAmount)
+
+which.have.least <- which((new_foo1$RevisedAmount < 0.4))
+least_quarter <- new_foo1[which.have.least, ]
+least_quarter$RevisedAmount
+
+which.have.top <- which((new_foo1$RevisedAmount > 1.000))
+top_quarter <- new_foo1[which.have.top, ]
+top_quarter$RevisedAmount
+
+#top_quarter <- new_foo1[new_foo1$RevisedAmount > quantile(new_foo1$RevisedAmount,prob=1-(25/100)),]
+#top_quarter$RevisedAmount
+#summary(top_quarter$RevisedAmount)
+
+least_quarter$Rating
+summary(least_quarter$Dept)
+summary(least_quarter$Rating)
+summary(least_quarter$Country)
+
+top_quarter$Rating
+summary(top_quarter$Rating)
+summary(top_quarter$Dept)
+summary(top_quarter$Country)
