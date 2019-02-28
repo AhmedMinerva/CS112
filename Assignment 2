@@ -1,0 +1,356 @@
+#Q1
+# produces a dataset that conforms to the classic univariate regression model
+
+library(haven)
+
+X <-c((runif(999, min=1, max=15)))
+Intercept= 20
+Y <- c((Intercept+0.4*X +runif(999, min=-10 , max= 10 )))
+data1 <- data.frame(X,Y)
+data1
+
+lm.fit <- lm(Y~X, data=data1)
+summary(lm.fit)
+
+#Adding an outlier 
+data2<- rbind(data1, c(2000, -5000))
+lm.fit1 <- lm(Y~X, data=data2)
+summary(lm.fit1)
+
+#labeled data visualization that shows the regression line before and after the outlier 
+plot(X,Y, main = "Plot Comparing regresions before/after the outlier", xlab = "The independent Variable", 
+     ylab = "The dependent variable")
+
+abline(lm.fit,lwd=1,col="blue")
+abline(lm.fit1,lwd=1,col="red")
+
+#-----------------------------------------
+#Q2
+#Producing a 95% confidence intervals of expected and predicted values for a liner models 
+#1
+library(arm)
+library(Matching)
+
+data(lalonde)
+summary(lalonde)
+head(lalonde)
+
+#Choosing only the control group, where Treatment==0
+
+lalonde1 <- lalonde[lalonde$treat != 1, ]
+summary(lalonde1)
+head(lalonde1)
+
+
+lm.fit2 <- lm(re78~ age+educ+re74+re75+(educ*re74)+(educ*re75)+(age*re74)+(age*re75)+I(age*age)+(re74*re75), data=lalonde1)
+summary(lm.fit2)
+display(lm.fit2)
+
+
+get_turnout_prob <- function(coefs, person) {
+  xx <- coefs[1] + 
+    person[1]*coefs[2] +
+    person[2]*coefs[3] +
+    person[3]*coefs[4] + 
+    person[4]*coefs[5] +
+    person[1]*person[1]*coefs[6] +
+    person[2]*person[3]*coefs[7] +
+    person[2]*person[4]*coefs[8] +
+    person[1]*person[3]*coefs[9] +
+    person[1]*person[4]*coefs[10] +
+    person[3]*person[4]*coefs[11] 
+  
+  return (xx)
+}
+
+this_person <- c(age,median(lalonde1$educ),median(lalonde1$re74),median(lalonde1$re75))
+get_turnout_prob(sim.lm.fit2@coef[1, ], this_person)
+
+#Producing 10000 simulated row of coefficients for the model 
+
+sim.lm.fit2 <- sim(lm.fit2, 10000)
+#sim.lm.fit2
+sim.lm.fit2@coef
+storage.age <- matrix(NA, nrow = 10000, ncol=39)
+
+#Calculating the expected values for re78 using the simulation and get_turnout functions
+
+for (age in c(17:55)) {
+  for (i in 1:10000)
+  {
+    this_person <- c(age,median(lalonde1$educ),median(lalonde1$re74),median(lalonde1$re75))
+    storage.age[i, age - 16] <- get_turnout_prob(sim.lm.fit2@coef[i, ], this_person)
+    
+  }
+}
+
+#storage.age
+
+#Getting the 95% confidence interval from the storage set
+
+conf.intervals_age<- apply(storage.age, 2, quantile, probs = c(0.025, 0.975),na.rm = TRUE)
+#conf.intervals_age<- quantile(storage.age, probs = c(0.005, 0.995))
+
+#Producing a figure for the expected values
+
+plot(x = c(1:1000), y = c(1:1000), type = "n", xlim = c(17,55), ylim = c(-10000,20000), 
+     main = "Plot1(Earnings in 1978 by age)", xlab = "Age of Respondent", 
+     ylab = "Earnings in 1978")
+
+for (age in 17:55) {
+  segments(
+    x0 = age,
+    y0 = conf.intervals_age[1, age - 16],
+    x1 = age,
+    y1 = conf.intervals_age[2, age - 16],
+    lwd = 2)
+}
+
+#Producing a table/view of the bounds of the prediction intervals of y for the different ages
+
+mm  <- conf.intervals_age
+colnames(mm) <-c(17:55)
+rownames(mm) <- c("Lower Bound","Higher Bound")
+View(t(mm))
+
+#2
+
+this_person1 <- c(age,quantile(lalonde1$educ, .75),quantile(lalonde1$re74, .75),quantile(lalonde1$re75, .75))
+get_turnout_prob(sim.lm.fit2@coef[1, ], this_person1)
+
+
+
+storage.age1 <- matrix(NA, nrow = 10000, ncol=39)
+
+for (age in c(17:55)) {
+  for (i in 1:10000)
+  {
+    this_person1 <- c(age,quantile(lalonde1$educ, .75),quantile(lalonde1$re74, .75),quantile(lalonde1$re75, .75))
+    storage.age1[i, age - 16] <- get_turnout_prob(sim.lm.fit2@coef[i, ], this_person1)
+    
+  }
+}
+
+
+conf.intervals_age1<- apply(storage.age1, 2, quantile, probs = c(0.025, 0.975),na.rm = TRUE)
+
+
+plot(x = c(1:1000), y = c(1:1000), type = "n", xlim = c(16,55), ylim = c(-10000,20000), 
+     main = "Earnings in 1978 interval analyses with expected valuese", xlab = "Age of Respondent", 
+     ylab = "Earnings in 1978")
+
+for (age in 17:55) {
+  segments(
+    x0 = age,
+    y0 = conf.intervals_age1[1, age - 16],
+    x1 = age,
+    y1 = conf.intervals_age1[2, age - 16],
+    lwd = 2,
+    col=rgb(0,0,1,0.7))
+}
+
+for (age in 17:55) {
+  segments(
+    x0 = age,
+    y0 = conf.intervals_age[1, age - 16],
+    x1 = age,
+    y1 = conf.intervals_age[2, age - 16],
+    lwd = 2,
+    col=rgb(1,0,0,0.6))
+}
+
+mm1  <- conf.intervals_age1
+colnames(mm1) <-c(17:55)
+rownames(mm1) <- c("Lower Bound","Higher Bound")
+View(t(mm1))
+
+
+
+#3
+this_person <- c(age,median(lalonde1$educ),median(lalonde1$re74),median(lalonde1$re75))
+get_turnout_prob(sim.lm.fit2@coef[1, ], this_person)
+
+sim.lm.fit2@coef[1, ]
+
+
+storage.age2 <- matrix(NA, nrow = 10000, ncol=39)
+
+for (age in c(17:55)) {
+  for (i in 1:10000)
+  {
+    this_person <- c(age,median(lalonde1$educ),median(lalonde1$re74),median(lalonde1$re75))
+    storage.age2[i, age - 16] <- get_turnout_prob(sim.lm.fit2@coef[i, ], this_person)+ rnorm(1, 0, sim.lm.fit2@sigma[i])
+    
+  }
+}
+
+#storage.age
+conf.intervals_age2<- apply(storage.age2, 2, quantile, probs = c(0.025, 0.975),na.rm = TRUE)
+
+#conf.intervals_age<- quantile(storage.age, probs = c(0.005, 0.995))
+
+plot(x = c(1:1000), y = c(1:1000), type = "n", xlim = c(17,55), ylim = c(-10000,20000), 
+     main = "Plot3(Earnings in 1978 by age)", xlab = "Age of Respondent", 
+     ylab = "Earnings in 1978")
+
+for (age in 17:55) {
+  segments(
+    x0 = age,
+    y0 = conf.intervals_age2[1, age - 16],
+    x1 = age,
+    y1 = conf.intervals_age2[2, age - 16],
+    lwd = 2)
+}
+
+mm2  <- conf.intervals_age2
+colnames(mm2) <-c(17:55)
+rownames(mm2) <- c("Lower Bound","Higher Bound")
+View(t(mm2))
+
+#4
+this_person1 <- c(age,quantile(lalonde1$educ, .75),quantile(lalonde1$re74, .75),quantile(lalonde1$re75, .75))
+#SHOULD I PUT AGE OF THE DATA OR AGE OF FROM 17 TO 55?
+get_turnout_prob(sim.lm.fit2@coef[1, ], this_person1)
+
+
+
+storage.age4 <- matrix(NA, nrow = 10000, ncol=39)
+
+for (age in c(17:55)) {
+  for (i in 1:10000)
+  {
+    this_person1 <- c(age,quantile(lalonde1$educ, .75),quantile(lalonde1$re74, .75),quantile(lalonde1$re75, .75))
+    storage.age4[i, age - 16] <- get_turnout_prob(sim.lm.fit2@coef[i, ], this_person1)+rnorm(1, 0, sim.lm.fit2@sigma[i])
+    
+  }
+}
+
+conf.intervals_age4<- apply(storage.age4, 2, quantile, probs = c(0.025, 0.975),na.rm = TRUE)
+
+#conf.intervals_age<- quantile(storage.age, probs = c(0.005, 0.995))
+
+plot(x = c(1:1000), y = c(1:1000), type = "n", xlim = c(17,55), ylim = c(-10000,20000), 
+     main = "Earnings in 1978 interval analyses with predicted values", xlab = "Age of Respondent", 
+     ylab = "Earnings in 1978")
+
+
+for (age in 17:55) {
+  segments(
+    x0 = age,
+    y0 = conf.intervals_age2[1, age - 16],
+    x1 = age,
+    y1 = conf.intervals_age2[2, age - 16],
+    lwd = 2,
+    col=rgb(1,0,0,0.6))
+  
+}
+
+
+for (age in 17:55) {
+  segments(
+    x0 = age,
+    y0 = conf.intervals_age4[1, age - 16],
+    x1 = age,
+    y1 = conf.intervals_age4[2, age - 16],
+    lwd = 2,
+    col=rgb(0,0,1,0.6))
+}
+
+mm4  <- conf.intervals_age4
+colnames(mm4) <-c(17:55)
+rownames(mm4) <- c("Lower Bound","Higher Bound")
+View(t(mm4))
+
+
+------------------------------------------------
+#Q3
+#Generating a booststrp manual function and comparing the confidence intervals--one obtained via simulation, the other via the formula.
+
+library(datasets)
+library(arm)
+
+data("PlantGrowth")
+head(PlantGrowth)
+summary(PlantGrowth)
+
+#Discarding observations associated with treatment2 and assigning trt a value =1, control a value =0
+
+PlantGrowth1 <- PlantGrowth[PlantGrowth$group != "trt2", ]
+summary(PlantGrowth1)
+
+newdata <- data.frame(weight=20, group=2)
+attach(newdata)
+
+for (i in 1:20){
+  if (PlantGrowth1[i,2] == "ctrl"){
+    newdata[i,1] <- PlantGrowth1[i,1]
+    newdata[i,2] <- 0
+  }
+  else {
+    newdata[i,1] <- PlantGrowth1[i,1]
+    newdata[i,2] <- 1
+  }
+}
+summary(newdata)
+
+
+#Bootstrapping
+
+lm.plant <- lm(weight~group,data=newdata)
+storage.vector <- rep(0, 1000)
+
+for (i in 1:1000){
+  
+  sampling <- sample(20,20,replace=TRUE)
+  storage.vector[i]= lm(weight~group,data=newdata[sampling,])$coefficients[2]
+}
+
+#Comparing the two quantiles
+
+quantile(storage.vector, probs = c(0.025,0.975))
+confint(lm.plant,level = 0.95)[2,]
+summary(lm.plant)
+
+hist(storage.vector,main = "Histogram of the Bootstrapping sample", xlab = "Treatments Coeffients")
+
+#---------------------------------------------
+#Q4
+# a function that takes Ys and outputs R^2
+
+r2 <- function(y1, y2) {
+  sstot = sum((y2 - y1) ^ 2)
+  ssres = sum((y1 - mean(y1)) ^ 2)
+  return(1 - (sstot/ssres))
+}
+y2=predict(lm.plant)
+r2(newdata$weight,y2)
+summary(lm.plant)
+#--------------------------------------------------------------------
+#Q5
+# Estimating  the probability of being assigned to the treatment group (vs. the control group)
+
+library(scales)
+library(foreign)
+library(arm)
+data_plotting <-read.dta("http://www.nber.org/~rdehejia/data/nsw.dta")
+head(data_plotting)
+
+treat = data_plotting[data_plotting$treat == 1,]
+control = data_plotting[data_plotting$treat == 0,]
+
+plot_model <- glm(treat ~ age + education + black + hispanic + married + nodegree + re75, data = data_plotting, family = binomial)
+
+#predict(plot_model,treat, type="response")
+t.prediction <- predict(plot_model, treat, type ="response")
+c.prediction = predict(plot_model, control, type = "response")
+
+figure1<-hist(t.prediction, col="blue", main="Distribution of the treatment group's estimated probabilities", xlab="The Treatment group distribution")  
+legend("topright", c("Treatment"), fill="blue")
+figure2<-hist(c.prediction, col="red", main="Distribution of the control group's estimated probabilities", xlab="The Control group distribution")  
+legend("topright", c("Control"), fill="red") 
+
+
+plot(figure1, col=rgb(0,0,1,0.6),border=F, main="Treatment VS Control", xlab="score", ylab="Frequency")
+plot(figure2, col=rgb(1,0,0,0.6),border=F, add=T)
+legend("topright", c("control"), fill="red") 
+
