@@ -1,0 +1,173 @@
+#Question 2
+
+library(Matching)
+library(arm)
+
+PEACEKEEPING WORKOUT (based on  King, Gary;Zeng, Langche, 2007, 
+                      "Replication data for: When Can History be Our Guide? 
+                      The Pitfalls of Counterfactual Inference", 
+                      https://hdl.handle.net/1902.1/DXRXCFAWPK, 
+                      Harvard Dataverse, V4, 
+                      UNF:3:DaYlT6QSX9r0D50ye+tXpA== [fileUNF] )
+# CONSIDER USING THE JUPYTER NOTEBOOK WITH R-SERVER KERNEL (NEVER R-SAGE KERNEL)
+foo <- read.csv("https://course-resources.minerva.kgi.edu/uploaded_files/mke/00086677-3767/peace.csv")
+
+# extract relevant columns
+foo <- foo[, c(6:8, 11:16, 99, 50, 114, 49, 63, 136, 109, 126, 48, 160, 142, 10)]
+
+# remove 2 rows with missing data (there are better ways to handle missing data)
+foo <- foo[c(-19, -47), ]
+
+# check that all missing data is gone...
+which(is.na(foo) == TRUE)
+
+# take a peek at the data set (identify the columns)
+head(foo)
+
+glm2 <- glm(pbs2s3 ~ wartype + logcost + wardur + factnum + factnum2 + trnsfcap + untype4 + treaty + develop + exp + decade +(logcost*untype4), data = foo, family = binomial)
+glm2
+
+
+storage <- matrix(NA, nrow=1,ncol = 
+  320)
+
+storage1 <- matrix(NA, nrow=1,ncol =
+  320)
+count<- c()
+
+storagefinal <- matrix(NA, nrow=1,ncol = 
+  320)
+
+for (i in 1:320) {
+  
+  count<-c(count,i)
+  
+  tre = coef(glm2)[1]+ coef(glm2)[2]*mean(foo$wartype)+
+    coef(glm2)[3] *mean(foo$logcost)+
+    coef(glm2)[4]*i+ 
+    coef(glm2)[5]*mean(foo$factnum)+
+    coef(glm2)[6]*mean(foo$factnum2)+
+    coef(glm2)[7]*mean(foo$trnsfcap)+
+    coef(glm2)[8]*1+ 
+    coef(glm2)[9]*mean(foo$treaty)+
+    coef(glm2)[10]*mean(foo$develop)+
+    coef(glm2)[11]*mean(foo$exp)+ 
+    coef(glm2)[12]* mean(foo$decade)+
+    coef(glm2)[13]*mean(foo$logcost)*1
+  
+  con = coef(glm2)[1]+ coef(glm2)[2]*mean(foo$wartype)+coef(glm2)[3] *mean(foo$logcost)+ coef(glm2)[4]*i+ coef(glm2)[5]*mean(foo$factnum)+coef(glm2)[6]*mean(foo$factnum2)+coef(glm2)[7]* mean(foo$trnsfcap)+coef(glm2)[8]*0+ coef(glm2)[9]*mean(foo$treaty)+
+    coef(glm2)[10]*mean(foo$develop)+coef(glm2)[11]*mean(foo$exp)+ coef(glm2)[12]* mean(foo$decade)+coef(glm2)[13]*mean(foo$logcost)*0
+  
+  etre=exp(tre)/(1+exp(tre))
+  econ=exp(con)/(1+exp(con))
+  storagefinal[1,i] = etre - econ
+  
+  storage[1,i] <- etre
+  storage1[1,i]<- econ
+}
+storagefinal
+etre
+econ
+
+count
+Treeffect = storage - storage1
+Treeffect
+
+plot(x=count, y=(storagefinal), main = "Causal Effect of Multidimensional UN PKO", xlab = "Duration of wars in months",ylab = "Marginal effect of UN peacekeeping operations")
+#--------------------------------------------------------------------------------------------------------------
+Question 4
+
+library(Matching)
+
+doo <- read.csv("https://course-resources.minerva.kgi.edu/uploaded_files/mke/00086677-3767/peace.csv")
+head(doo)
+
+doo <- doo[c(-19, -47,-4, -16, -84, -93, -98), ]
+doo$pbs2l 
+
+Tr <- rep(0, length(doo$uncint))
+Tr[which(doo$uncint !='None')] <- 1
+doo$uncint<-Tr
+
+pbs2l <- rep(0, length(doo$pbs2l))
+pbs2l[which(doo$pbs2l =='Failure')] <- 0
+pbs2l[which(doo$pbs2l =='Success')] <- 1
+doo$pbs2l<- pbs2l
+doo$pbs2l
+
+
+pbs5l <- rep(0, length(doo$pbs5l))
+pbs5l[which(doo$pbs5l =='Success')] <- 1
+doo$pbs5l<-pbs5l
+
+
+#Logarithmic 
+glmpb2 <- glm(pbs2l ~ wartype + logcost + wardur + factnum + factnum2 + trnsfcap  + 
+                treaty + develop + exp + decade +Tr, data = doo, family = binomial)
+glmpb5 <- glm(pbs5l ~ wartype + logcost + wardur + factnum + factnum2 + trnsfcap  +
+                treaty + develop + exp + decade +Tr, data = doo, family = binomial)
+
+summary(glmpb2)
+summary(glmpb5)
+Matchb<-MatchBalance(Tr ~ wartype + logcost + wardur + factnum + factnum2 + trnsfcap  +
+                        treaty + develop + exp + decade, data = doo, nboots=500)
+
+#--------------------------------------------------------------------------------------------------------
+#PropensityScore
+?Match
+glmprob <- glm(Tr ~ wartype + logcost + wardur + factnum + factnum2 + trnsfcap  +
+                treaty + develop + exp + decade, data = doo, family = binomial)
+
+X <- glmprob$fitted
+Y <- doo$pbs2l
+Tr <- Tr
+
+pb1 <- Match(Y=Y, Tr=Tr, X=X, M=1)
+Matchb1<-MatchBalance(Tr ~ wartype + logcost + wardur + factnum + factnum2 + trnsfcap  +
+                              treaty + develop + exp + decade, data = doo, match.out=pb1, nboots=1000)
+summary(pb1)
+
+pb2 <- Match(Y=Y, Tr=Tr, X=X, M=1,BiasAdjust = T)
+summary(pb2)
+Matchb2<-MatchBalance(Tr ~ wartype + logcost + wardur + factnum + factnum2 + trnsfcap  +
+                        treaty + develop + exp + decade, data = doo, match.out=pb2, nboots=1000)
+
+Y2 <- doo$pbs5l
+
+pb3 <- Match(Y=Y2, Tr=Tr, X=X, M=1)
+summary(pb3)
+Matchb3<-MatchBalance(Tr ~ wartype + logcost + wardur + factnum + factnum2 + trnsfcap  +
+                        treaty + develop + exp + decade, data = doo, match.out=pb3, nboots=1000)
+
+pb4 <- Match(Y=Y2, Tr=Tr, X=X, M=1,BiasAdjust = T)
+summary(pb4)
+Matchb4<-MatchBalance(Tr ~ wartype + logcost + wardur + factnum + factnum2 + trnsfcap  +
+                        treaty + develop + exp + decade, data = doo, match.out=pb4, nboots=1000)
+#----------------------------------------------------------------------------------------------------------
+#Genetic
+?GenMatch
+XG = cbind(doo$wartype, doo$logcost,  doo$wardur, doo$factnum, doo$factnum2, doo$trnsfcap,
+             doo$treaty,doo$develop, doo$exp,doo$decade)
+
+genout <- GenMatch(Tr=Tr, X=XG, estimand="ATT", M=1,
+                   pop.size=200, max.generations=100, wait.generations=25)
+
+
+Gmout <- Match(Y=Y, Tr=Tr, X=XG, estimand="ATT", BiasAdjust = T, Weight.matrix=genout)
+summary(Gmout)
+Gmoutt <- Match(Y=Y, Tr=Tr, X=XG, estimand="ATT", Weight.matrix=genout)
+summary(Gmoutt)
+Matchb5<-MatchBalance(Tr ~ wartype + logcost + wardur + factnum + factnum2 + trnsfcap  +
+                        treaty + develop + exp + decade, data = doo, match.out=Gmout, nboots=1000)
+
+Gmout2 <- Match(Y=Y2, Tr=Tr, X=XG, estimand="ATT", BiasAdjust = T, Weight.matrix=genout)
+summary(Gmout2)
+Gmout2t <- Match(Y=Y2, Tr=Tr, X=XG, estimand="ATT", Weight.matrix=genout)
+summary(Gmout2t)
+Matchb6<-MatchBalance(Tr ~ wartype + logcost + wardur + factnum + factnum2 + trnsfcap  +
+                        treaty + develop + exp + decade, data = doo, match.out=Gmout2, nboots=1000)
+?matching
+
+
+
+
