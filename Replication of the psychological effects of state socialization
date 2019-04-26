@@ -1,0 +1,144 @@
+#Gina Miller, Ryan Welch, and Andrew Vonasch
+#Replication Models for International Interactions
+##################################################
+library(Matching)
+library(rbounds)
+
+#check if packages are installed, and if not, install them
+packages <- c("foreign", "Zelig", "MatchIt", "data.table", "Hmisc", "rms", "dplyr", "plm", "urca", "car", "gplots",
+              "tseries", "glmnet", "readstata13","rbounds")
+if (length(setdiff(packages, rownames(installed.packages()))) > 0) {
+  install.packages(setdiff(packages, rownames(installed.packages())), repos="http://cran.rstudio.com/")  
+}
+
+
+setwd("C:/Users/Os's PC/Documents/CS112/Finalproject 4-14-2019")
+#attach packages
+lapply(packages, library, character.only = T)
+
+####################################################
+
+#turn off scientific notation
+options(scipen=999)
+
+#set seed, using random.org(1-10000)
+set.seed(868)
+
+#open data, set it as igo.data
+igo.data <-read.dta("MilVonWel_Data_23Sep2016.dta", convert.factor=FALSE)
+
+#keep the variables we want for analysis
+igo.data1 <-  igo.data[, c("cowcode", "year", "hr_latentmean", "hasnhri", "lostmem", "lpop", "hr_latentmeanlag", "hrfilled", "media_ai_tot", "xconst", "lgdp", "igomemsum")]
+
+#listwise delete
+igo.data1 <- na.omit(igo.data1) 
+
+#attach data
+attach(igo.data1)
+igo.data1
+
+
+#########################################################
+#Matching
+#Nearest Neighbor (one to one)
+
+nearest.out1<-matchit(lostmem ~ hrfilled + hasnhri + media_ai_tot + hasnhri + xconst + lgdp + igomemsum + lpop, data = igo.data1, method ="nearest", distance = "logit", discard = "both", reestimate = TRUE)
+nearest.out2<-matchit(lostmem ~ hrfilled + hasnhri + media_ai_tot + hasnhri + xconst + lgdp + igomemsum + lpop, data = igo.data1, method ="genetic", distance = "logit", discard = "both", reestimate = TRUE)
+
+##Table 1##
+summary(nearest.out1)
+summary(nearest.out2)
+
+#create data frame
+nearest.data1<-match.data(nearest.out1)
+nearest.data2<-match.data(nearest.out2)
+
+#Regression
+reg<-zelig(hr_latentmean ~ lostmem + hr_latentmeanlag + hrfilled + media_ai_tot + xconst + lgdp + lpop + igomemsum + hasnhri, data = nearest.data1, model= "normal")
+reg2<-zelig(hr_latentmean ~ lostmem + hr_latentmeanlag + hrfilled + media_ai_tot + xconst + lgdp + lpop + igomemsum + hasnhri, data = nearest.data2, model= "normal")
+
+##Table 2##
+summary(reg)
+summary(reg2)
+
+
+#sensativity analysis 
+binarysens(x=nearest.out1,y ="hr_latentmean", Gamma=2, GammaInc=.1)
+psens(x=nearest.out1,y ="hr_latentmean", Gamma=2, GammaInc=.1)
+
+psens(nearest.out1, Gamma = 2, GammaInc = 0.1)
+
+#########################################################
+#Matching
+#Nearest Neighbor (one to one)
+nearest.out1<-matchit(lostmem ~ hrfilled + hasnhri + media_ai_tot + hasnhri + xconst + lgdp + igomemsum + lpop, data = igo.data1, method ="nearest", distance = "logit", discard = "both", reestimate = TRUE)
+genmatch<-matchit(lostmem ~ hrfilled + hasnhri + media_ai_tot + hasnhri + xconst + lgdp + igomemsum + lpop, data = igo.data1, method ="genetic", distance = "logit", discard = "both", reestimate = TRUE)
+genmatch
+macthbal
+?matchit
+##Table 1##
+nearest.out1
+summary(nearest.out1)
+
+#create data frame
+nearest.data1<-match.data(nearest.out1)
+
+#Regression
+reg<-zelig(hr_latentmean ~ lostmem + hr_latentmeanlag + hrfilled + media_ai_tot + xconst + lgdp + lpop + igomemsum + hasnhri, data = nearest.data1, model= "normal")
+?zelig
+##Table 2##
+summary(reg)
+##############################################
+
+
+#Logarithmic 
+linearmodel <- lm(hr_latentmean ~ lostmem + hr_latentmeanlag + hrfilled + media_ai_tot + xconst + lgdp + lpop + igomemsum + hasnhri, data = igo.data1)
+linearmodel
+
+summary(linearmodel)
+Matchlinear<-MatchBalance(lostmem ~ hrfilled + hasnhri + media_ai_tot + hasnhri + xconst + lgdp + igomemsum + lpop, data = igo.data1, nboots=500)
+
+#--------------------------------------------------------------------------------------------------------
+#PropensityScore
+
+linearmodel <- lm(hr_latentmean ~ lostmem + hr_latentmeanlag + hrfilled + media_ai_tot + xconst + lgdp + lpop + igomemsum + hasnhri, data = igo.data1)
+
+
+X <- linearmodel$fitted
+Y <- igo.data1$hr_latentmean
+Tr <- lostmem
+
+Probmatch <- Match(Y=Y, Tr=Tr, X=X, M=1, caliper=10)
+MatchProb<-MatchBalance(lostmem ~ hrfilled + hasnhri + media_ai_tot + hasnhri + xconst + lgdp + igomemsum + lpop, data = igo.data1, match.out=Probmatch, nboots=1000)
+
+?psens
+psens(Probmatch, Gamma = 2, GammaInc = 0.1)
+
+
+#----------------------------------------------------------------------------------------------------------
+#Genetic
+
+XG = cbind(igo.data1$hrfilled, igo.data1$hasnhri, igo.data1$media_ai_tot, igo.data1$hasnhri, igo.data1$xconst, igo.data1$lgdp, igo.data1$igomemsum, igo.data1$lpop)
+
+genout <- GenMatch(Tr=Tr, X=XG, estimand="ATT", M=1,
+                   pop.size=200, max.generations=20, wait.generations=5)
+
+
+Gmout <- Match(Y=Y, Tr=Tr, X=XG, estimand="ATT", Weight.matrix=genout)
+psens(Gmout, Gamma = 2, GammaInc = 0.1)
+
+summary(Gmout)
+
+#Calculating Treating effect 
+linearmodel <- lm(hr_latentmean ~ lostmem + hr_latentmeanlag + hrfilled + media_ai_tot + xconst + lgdp + lpop + igomemsum + hasnhri, data = igo.data1)
+
+igo.data1.counter_factual <- igo.data1
+igo.data1.counter_factual$lostmem <- rep(1, nrow(igo.data1)) - igo.data1$lostmem
+counter.factuals <- predict(linearmodel, newdata=igo.data1.counter_factual, type="response")
+unit_treat_effects <- rep(NA, nrow(igo.data1))
+
+mask <- igo.data1$lostmem == 1
+unit_treat_effects[mask] <- linearmodel$fitted.values[mask] - counter.factuals[mask]
+unit_treat_effects[!mask] <- counter.factuals[!mask] - linearmodel$fitted.values[!mask]
+
+mean(unit_treat_effects)
